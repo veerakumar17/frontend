@@ -1,0 +1,320 @@
+.pd-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 32px 24px 60px;
+  font-family: 'Roboto', sans-serif;
+}
+
+.pd-header {
+  margin-bottom: 32px;
+}
+
+.pd-back {
+  background: none;
+  border: none;
+  color: #2C85C5;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 12px;
+  font-family: 'Roboto', sans-serif;
+}
+
+.pd-back:hover { text-decoration: underline; }
+
+.pd-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0d2a3e;
+  margin-bottom: 6px;
+}
+
+.pd-subtitle {
+  font-size: 14px;
+  color: #2c5f80;
+}
+
+.pd-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+@media (max-width: 768px) {
+  .pd-grid { grid-template-columns: 1fr; }
+}
+
+.pd-left { display: flex; flex-direction: column; gap: 20px; }
+.pd-right { display: flex; flex-direction: column; gap: 20px; }
+
+.pd-card {
+  background: #ffffff;
+  border: 1px solid rgba(44,133,197,0.2);
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 2px 12px rgba(44,133,197,0.07);
+}
+
+.pd-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0d2a3e;
+  margin-bottom: 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(44,133,197,0.15);
+}
+
+.pd-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(44,133,197,0.08);
+  font-size: 14px;
+}
+
+.pd-detail-row span { color: #2c5f80; }
+.pd-detail-row strong { color: #0d2a3e; font-weight: 600; }
+
+.pd-eligibility {
+  margin-top: 16px;
+  background: #f0f7fd;
+  border: 1px solid rgba(44,133,197,0.2);
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 13px;
+  color: #2C85C5;
+  font-weight: 500;
+}
+
+.pd-benefits {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pd-benefits li {
+  font-size: 14px;
+  color: #0d2a3e;
+  padding-left: 20px;
+  position: relative;
+  line-height: 1.5;
+}
+
+.pd-benefits li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #2C85C5;
+}
+
+/* Payment Options */
+.pd-pay-options {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pd-pay-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 2px solid rgba(44,133,197,0.3);
+  background: #f0f7fd;
+  cursor: pointer;
+  font-family: 'Roboto', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
+  color: #0d2a3e;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.pd-pay-btn span {
+  font-size: 12px;
+  font-weight: 400;
+  color: #2c5f80;
+}
+
+.pd-pay-btn:hover {
+  border-color: #2C85C5;
+  background: #e0f0fb;
+}
+
+/* Full Pay */
+.pd-full-pay { display: flex; flex-direction: column; gap: 16px; }
+
+.pd-amount-box {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #f0f7fd;
+  border: 1px solid rgba(44,133,197,0.2);
+  border-radius: 10px;
+  padding: 16px 20px;
+  font-size: 14px;
+  color: #2c5f80;
+}
+
+.pd-amount-box strong {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0d2a3e;
+}
+
+.pd-confirm-btn {
+  background: linear-gradient(135deg, #2C85C5, #1a6aa8);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Roboto', sans-serif;
+  transition: opacity 0.2s;
+}
+
+.pd-confirm-btn:hover:not(:disabled) { opacity: 0.9; }
+.pd-confirm-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.pd-change-btn {
+  background: none;
+  border: 1px solid rgba(44,133,197,0.3);
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 13px;
+  color: #2C85C5;
+  cursor: pointer;
+  font-family: 'Roboto', sans-serif;
+  transition: background 0.2s;
+}
+
+.pd-change-btn:hover { background: #f0f7fd; }
+
+/* Success */
+.pd-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 0;
+  text-align: center;
+}
+
+.pd-success-icon { font-size: 48px; }
+.pd-success-title { font-size: 18px; font-weight: 700; color: #0d2a3e; }
+.pd-success-sub { font-size: 14px; color: #2c5f80; }
+
+/* Eligible message */
+.pd-eligible-msg {
+  background: linear-gradient(135deg, #2C85C5, #1a6aa8);
+  color: #fff;
+  border-radius: 12px;
+  padding: 16px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 8px;
+}
+
+/* Progress bar */
+.pd-progress-bar-wrap { margin-bottom: 20px; }
+
+.pd-progress-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #2c5f80;
+  margin-bottom: 8px;
+}
+
+.pd-progress-track {
+  height: 8px;
+  background: rgba(44,133,197,0.15);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pd-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2C85C5, #1a6aa8);
+  border-radius: 10px;
+  transition: width 0.4s ease;
+}
+
+/* Weeks grid */
+.pd-weeks-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pd-week-card {
+  border-radius: 12px;
+  padding: 14px 10px;
+  text-align: center;
+  border: 1px solid transparent;
+}
+
+.pd-week-icon { font-size: 20px; margin-bottom: 4px; }
+.pd-week-label { font-size: 12px; font-weight: 700; color: #0d2a3e; }
+.pd-week-status { font-size: 11px; margin-top: 2px; }
+
+.week-paid {
+  background: #e8f5e9;
+  border-color: #66bb6a;
+}
+.week-paid .pd-week-status { color: #2e7d32; }
+
+.week-pending {
+  background: #fff8e1;
+  border-color: #ffa726;
+}
+.week-pending .pd-week-status { color: #e65100; }
+
+.week-locked {
+  background: #f5f5f5;
+  border-color: #e0e0e0;
+}
+.week-locked .pd-week-status { color: #9e9e9e; }
+
+/* Pay feedback */
+.pd-pay-feedback {
+  font-size: 13px;
+  color: #2c5f80;
+  text-align: center;
+  padding: 8px;
+}
+
+.pd-pay-ok { color: #2e7d32; font-weight: 600; }
+
+/* Not found */
+.pd-not-found {
+  min-height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  color: #0d2a3e;
+}
+
+.pd-not-found button {
+  background: #2C85C5;
+  color: #fff;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-family: 'Roboto', sans-serif;
+}
