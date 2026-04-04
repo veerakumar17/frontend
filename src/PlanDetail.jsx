@@ -1,15 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { getDynamicPremiums, createPolicy, payPremium, getPolicy, getPremiumHistory } from "./api";
 import Navbar from "./Navbar";
 import "./PlanDetail.css";
 
-const PLAN_DATA = {
+const PLAN_META = {
   Basic: {
-    name: "Basic",
-    color: "#2C85C5",
-    coverage: 50000,
-    weeklyPremium: 20,
-    totalWeeks: 6,
     benefits: [
       "Coverage against heavy rainfall (>70mm)",
       "Coverage against extreme heat (>42°C)",
@@ -19,25 +15,15 @@ const PLAN_DATA = {
     ],
   },
   Standard: {
-    name: "Standard",
-    color: "#2C85C5",
-    coverage: 100000,
-    weeklyPremium: 35,
-    totalWeeks: 6,
     benefits: [
       "All Basic plan benefits",
       "Coverage against AQI >350 (severe pollution)",
-      "Coverage against flood alerts",
+      "Coverage against flood alerts (>120mm)",
       "Priority claim processing",
       "SMS & email notifications for triggers",
     ],
   },
   Premium: {
-    name: "Premium",
-    color: "#2C85C5",
-    coverage: 200000,
-    weeklyPremium: 50,
-    totalWeeks: 6,
     benefits: [
       "All Standard plan benefits",
       "Highest payout — ₹1,000/week",
@@ -48,196 +34,298 @@ const PLAN_DATA = {
   },
 };
 
+const riskColor = { Low: "#22c55e", Medium: "#f59e0b", High: "#ef4444" };
+
+const DASH_CACHE_KEY = "dash_cache";
+function readDashCache() {
+  try { return JSON.parse(localStorage.getItem(DASH_CACHE_KEY) || "null"); } catch { return null; }
+}
+function writeDashCache(patch) {
+  try {
+    const prev = JSON.parse(localStorage.getItem(DASH_CACHE_KEY) || "null") || {};
+    localStorage.setItem(DASH_CACHE_KEY, JSON.stringify({ ...prev, ...patch }));
+  } catch {}
+}
+
 export default function PlanDetail() {
   const { planName } = useParams();
-  const navigate = useNavigate();
-  const plan = PLAN_DATA[planName];
+  const navigate     = useNavigate();
+  const worker       = JSON.parse(localStorage.getItem("worker") || "{}");
+  const meta         = PLAN_META[planName];
+  const cached       = readDashCache();
 
-  const [payMode, setPayMode] = useState(null);
-  const [weeks, setWeeks] = useState(Array(6).fill("locked").fill("pending", 0, 1));
-  const [paying, setPaying] = useState(false);
-  const [fullPaid, setFullPaid] = useState(false);
-  const [fullPaying, setFullPaying] = useState(false);
+  const [dynDetails, setDynDetails] = useState(null);
+  const [policy,     setPolicy]     = useState(cached?.policy ?? null);
+  const [premInfo,   setPremInfo]   = useState(cached?.premInfo ?? null);
+  const [loading,    setLoading]    = useState(true);
+  const [payMode,    setPayMode]    = useState(null);
+  const [paying,     setPaying]     = useState(false);
+  const [creating,   setCreating]   = useState(false);
+  const [error,      setError]      = useState("");
+  const [success,    setSuccess]    = useState("");
 
-  if (!plan) {
-    return (
-      <>
-        <Navbar />
-        <div className="pd-not-found">
-          <p>Plan not found.</p>
-          <button onClick={() => navigate("/dashboard")}>Back to Dashboard</button>
-        </div>
-      </>
-    );
-  }
+  useEffect(() => {
+    if (!meta) return;
+    init();
+  }, [planName]);
 
-  const totalPayable = plan.weeklyPremium * plan.totalWeeks;
-  const paidCount = weeks.filter((w) => w === "paid").length;
-  const allPaid = paidCount === plan.totalWeeks;
+  const init = async () => {
+    setError("");
+    try {
+      const riskScore = parseFloat(localStorage.getItem("risk_score") || "0.5");
+      const dynRes    = await getDynamicPremiums(riskScore);
+      setDynDetails(dynRes.data.plans[planName]);
 
-  const currentPendingIndex = weeks.findIndex((w) => w === "pending");
+      // only fetch policy/premInfo if not already in cache
+      if (!cached?.policy) {
+        try {
+          const polRes  = await getPolicy(worker.id);
+          setPolicy(polRes.data);
+          writeDashCache({ policy: polRes.data });
+          const premRes = await getPremiumHistory(worker.id);
+          setPremInfo(premRes.data);
+          writeDashCache({ premInfo: premRes.data });
+        } catch { /* no policy yet */ }
+      }
+    } catch (err) {
+      setError("Failed to load plan details.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
-  const handleWeekPay = () => {
-    if (currentPendingIndex === -1 || paying) return;
+  const handleCreatePolicy = async () => {
+    setCreating(true);
+    setError("");
+    try {
+      const riskScore = parseFloat(localStorage.getItem("risk_score") || "0.5");
+      const res = await createPolicy(worker.id, planName, riskScore);
+      setPolicy(res.data);
+      writeDashCache({ policy: res.data });
+      setSuccess("Policy created! Now complete 6 weekly payments to activate coverage.");
+      setPayMode("weekly");
+    } catch (err) {
+      setError(err.response?.data?.detail || "Failed to create policy.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handlePayWeek = async () => {
+    if (paying) return;
     setPaying(true);
-    setTimeout(() => {
-      setWeeks((prev) => {
-        const updated = [...prev];
-        updated[currentPendingIndex] = "paid";
-        if (currentPendingIndex + 1 < plan.totalWeeks) {
-          updated[currentPendingIndex + 1] = "pending";
-        }
-        return updated;
-      });
+    setError("");
+    setSuccess("");
+    try {
+      await payPremium(worker.id);
+      const polRes  = await getPolicy(worker.id);
+      setPolicy(polRes.data);
+      writeDashCache({ policy: polRes.data });
+      const premRes = await getPremiumHistory(worker.id);
+      setPremInfo(premRes.data);
+      writeDashCache({ premInfo: premRes.data });
+      const paid = polRes.data.weeks_paid;
+      if (polRes.data.is_eligible) {
+        setSuccess("All 6 weeks paid! You are now eligible for claims.");
+      } else {
+        setSuccess(`Week ${paid} payment successful! ${6 - paid} week${6 - paid !== 1 ? "s" : ""} remaining.`);
+      }
+    } catch (err) {
+      setError(err.response?.data?.detail || "Payment failed.");
+    } finally {
       setPaying(false);
-    }, 1200);
+    }
   };
 
-  const handleFullPay = () => {
-    setFullPaying(true);
-    setTimeout(() => {
-      setFullPaid(true);
-      setFullPaying(false);
-    }, 1500);
-  };
+  if (!meta) return (
+    <>
+      <Navbar />
+      <div className="pd-not-found">
+        <p>Plan not found.</p>
+        <button onClick={() => navigate("/dashboard")}>Back to Dashboard</button>
+      </div>
+    </>
+  );
 
-  const weekLabel = (status, i) => {
-    if (status === "paid") return { icon: "✅", label: "Paid", cls: "week-paid" };
-    if (status === "pending") return { icon: "⏳", label: "Pending", cls: "week-pending" };
-    return { icon: "🔒", label: "Locked", cls: "week-locked" };
-  };
+  if (loading) return (
+    <>
+      <Navbar />
+      <div className="pd-not-found"><div className="spinner" /></div>
+    </>
+  );
+
+  const paidCount  = policy?.weeks_paid ?? 0;
+  const isEligible = policy?.is_eligible ?? false;
+  const hasPlan    = policy?.plan === planName;
+  const hasDiffPlan = policy && policy.plan !== planName;
+
+  const weeks = Array(6).fill(null).map((_, i) => {
+    if (i < paidCount) return "paid";
+    if (i === paidCount && !isEligible) return "pending";
+    return "locked";
+  });
 
   return (
     <>
       <Navbar />
       <div className="pd-container">
 
-        {/* Header */}
         <div className="pd-header">
-          <button className="pd-back" onClick={() => navigate("/dashboard")}>← Back</button>
-          <h1 className="pd-title">{plan.name} Plan</h1>
+          <button className="pd-back" onClick={() => navigate("/dashboard")}>← Back to Dashboard</button>
+          <h1 className="pd-title">{planName} Plan</h1>
           <p className="pd-subtitle">Review your plan details and complete payment to activate coverage</p>
         </div>
 
         <div className="pd-grid">
 
-          {/* Left: Plan Details */}
+          {/* ── Left: Plan Details ── */}
           <div className="pd-left">
             <div className="pd-card">
               <h2 className="pd-card-title">Plan Overview</h2>
-              <div className="pd-detail-row"><span>Plan Name</span><strong>{plan.name}</strong></div>
-              <div className="pd-detail-row"><span>Coverage Amount</span><strong>₹{plan.coverage.toLocaleString()}</strong></div>
-              <div className="pd-detail-row"><span>Weekly Premium</span><strong>₹{plan.weeklyPremium}</strong></div>
-              <div className="pd-detail-row"><span>Duration</span><strong>{plan.totalWeeks} Weeks</strong></div>
-              <div className="pd-detail-row"><span>Total Payable</span><strong>₹{totalPayable}</strong></div>
+              {dynDetails && (
+                <>
+                  <div className="pd-detail-row">
+                    <span>Plan Name</span>
+                    <strong>{planName}</strong>
+                  </div>
+                  <div className="pd-detail-row">
+                    <span>Base Premium</span>
+                    <strong>₹{dynDetails.base_premium}/week</strong>
+                  </div>
+                  <div className="pd-detail-row">
+                    <span>Risk Level</span>
+                    <strong style={{ color: riskColor[dynDetails.risk_level] }}>
+                      {dynDetails.risk_level} Risk
+                    </strong>
+                  </div>
+                  <div className="pd-detail-row">
+                    <span>Risk Multiplier</span>
+                    <strong>×{dynDetails.multiplier}</strong>
+                  </div>
+                  <div className="pd-detail-row pd-highlight-row">
+                    <span>Final Weekly Premium</span>
+                    <strong className="pd-final-premium">₹{dynDetails.final_premium}/week</strong>
+                  </div>
+                  <div className="pd-detail-row">
+                    <span>Max Weekly Payout</span>
+                    <strong>₹{dynDetails.max_payout}</strong>
+                  </div>
+                  <div className="pd-detail-row">
+                    <span>Eligibility Period</span>
+                    <strong>6 Weeks</strong>
+                  </div>
+                  <div className="pd-detail-row">
+                    <span>Total to Pay</span>
+                    <strong>₹{(dynDetails.final_premium * 6).toFixed(2)}</strong>
+                  </div>
+                  <div className="pd-premium-formula">
+                    Formula: ₹{dynDetails.base_premium} × {dynDetails.multiplier} = <strong>₹{dynDetails.final_premium}/week</strong>
+                  </div>
+                </>
+              )}
               <div className="pd-eligibility">
-                Eligibility: User becomes eligible after completing all 6 weeks of payment
+                Coverage activates from Week 7 onwards after 6 consecutive premium payments
               </div>
             </div>
 
             <div className="pd-card">
               <h2 className="pd-card-title">Benefits</h2>
               <ul className="pd-benefits">
-                {plan.benefits.map((b, i) => (
-                  <li key={i}>{b}</li>
-                ))}
+                {meta.benefits.map((b, i) => <li key={i}>{b}</li>)}
               </ul>
             </div>
           </div>
 
-          {/* Right: Payment */}
+          {/* ── Right: Payment ── */}
           <div className="pd-right">
             <div className="pd-card">
-              <h2 className="pd-card-title">Payment Options</h2>
+              <h2 className="pd-card-title">Payment & Activation</h2>
 
-              {!payMode && !fullPaid && (
-                <div className="pd-pay-options">
-                  <button className="pd-pay-btn pd-pay-full" onClick={() => setPayMode("full")}>
-                    Pay Full Amount
-                    <span>₹{totalPayable} one-time</span>
-                  </button>
-                  <button className="pd-pay-btn pd-pay-weekly" onClick={() => setPayMode("weekly")}>
-                    Pay Weekly
-                    <span>₹{plan.weeklyPremium}/week × 6 weeks</span>
-                  </button>
+              {error   && <div className="pd-error">{error}</div>}
+              {success && <div className="pd-success-msg">{success}</div>}
+
+              {/* Already has a different plan */}
+              {hasDiffPlan && (
+                <div className="pd-info-box">
+                  You already have an active <strong>{policy.plan}</strong> plan.
+                  Only one policy per worker is allowed.
                 </div>
               )}
 
-              {/* Full Payment */}
-              {payMode === "full" && !fullPaid && (
-                <div className="pd-full-pay">
+              {/* No policy yet — offer to create */}
+              {!policy && !hasDiffPlan && (
+                <div className="pd-create-section">
                   <div className="pd-amount-box">
-                    <span>Total Amount</span>
-                    <strong>₹{totalPayable}</strong>
+                    <span>Dynamic Weekly Premium</span>
+                    <strong>₹{dynDetails?.final_premium}/week</strong>
                   </div>
-                  <button className="pd-confirm-btn" onClick={handleFullPay} disabled={fullPaying}>
-                    {fullPaying ? "Processing..." : "Pay Now"}
+                  <p className="pd-create-note">
+                    Once you activate this plan, the admin will trigger your weekly payments.
+                    Premium is adjusted based on your <strong>{dynDetails?.risk_level} Risk</strong> zone.
+                  </p>
+                  <button className="pd-confirm-btn" onClick={handleCreatePolicy} disabled={creating}>
+                    {creating ? "Creating Policy..." : `Activate ${planName} Plan`}
                   </button>
-                  <button className="pd-change-btn" onClick={() => setPayMode(null)}>Change Option</button>
                 </div>
               )}
 
-              {fullPaid && (
-                <div className="pd-success">
-                  <div className="pd-success-icon">✅</div>
-                  <p className="pd-success-title">Payment Successful!</p>
-                  <p className="pd-success-sub">₹{totalPayable} paid in full</p>
-                  <div className="pd-eligible-msg">
-                    You are now eligible for insurance coverage
-                  </div>
-                </div>
-              )}
-
-              {/* Weekly Payment */}
-              {payMode === "weekly" && (
+              {/* Has this plan — show weekly payment tracker */}
+              {hasPlan && (
                 <>
                   <div className="pd-progress-bar-wrap">
-                    <div className="pd-progress-label">{paidCount} / {plan.totalWeeks} weeks completed</div>
+                    <div className="pd-progress-label">{paidCount} / 6 weeks completed</div>
                     <div className="pd-progress-track">
-                      <div className="pd-progress-fill" style={{ width: `${(paidCount / plan.totalWeeks) * 100}%` }} />
+                      <div className="pd-progress-fill" style={{ width: `${Math.min((paidCount / 6) * 100, 100)}%` }} />
                     </div>
                   </div>
 
+                  {/* Payment history table */}
                   <div className="pd-weeks-grid">
-                    {weeks.map((status, i) => {
-                      const { icon, label, cls } = weekLabel(status, i);
-                      return (
-                        <div key={i} className={`pd-week-card ${cls}`}>
-                          <div className="pd-week-icon">{icon}</div>
-                          <div className="pd-week-label">Week {i + 1}</div>
-                          <div className="pd-week-status">{label}</div>
-                        </div>
-                      );
-                    })}
+                    <table className="pd-payment-table">
+                      <thead>
+                        <tr>
+                          <th>Week</th>
+                          <th>Amount</th>
+                          <th>Status</th>
+                          <th>Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {premInfo?.premiums?.length > 0 ? (
+                          premInfo.premiums.map((p, i) => (
+                            <tr key={p.id}>
+                              <td><strong>Week {p.week_number ?? i + 1}</strong></td>
+                              <td>Rs.{p.amount}</td>
+                              <td style={{ color: p.status === "paid" ? "#16a34a" : "#dc2626", fontWeight: 600, textTransform: "capitalize" }}>
+                                {p.status}
+                              </td>
+                              <td>{new Date(p.paid_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr><td colSpan={4} style={{ color: "var(--text2)", fontSize: 13 }}>No payments yet.</td></tr>
+                        )}
+                      </tbody>
+                    </table>
                   </div>
 
-                  {!allPaid && (
-                    <button
-                      className="pd-confirm-btn"
-                      onClick={handleWeekPay}
-                      disabled={paying || currentPendingIndex === -1}
-                    >
-                      {paying ? "Processing..." : `Pay Week ${currentPendingIndex + 1}`}
-                    </button>
-                  )}
-
-                  {paying && (
-                    <div className="pd-pay-feedback">Processing payment...</div>
-                  )}
-
-                  {!paying && paidCount > 0 && !allPaid && (
-                    <div className="pd-pay-feedback pd-pay-ok">Payment Successful ✅</div>
-                  )}
-
-                  {allPaid && (
-                    <div className="pd-eligible-msg">
-                      You are now eligible for insurance coverage
+                  {!isEligible && (
+                    <div className="pd-info-box">
+                      Waiting for admin to trigger Week {paidCount + 1} payment.
                     </div>
                   )}
 
-                  <button className="pd-change-btn" onClick={() => { setPayMode(null); setWeeks(Array(6).fill("locked").fill("pending", 0, 1)); }}>
-                    Change Option
-                  </button>
+                  {isEligible && (
+                    <div className="pd-eligible-msg">
+                      You are fully eligible for claims!<br />
+                      Coverage is active from this week onwards.
+                    </div>
+                  )}
+
+                  <div className="pd-policy-meta">
+                    <span>Policy ID: #{policy.id}</span>
+                    <span>Status: {policy.status}</span>
+                  </div>
                 </>
               )}
             </div>

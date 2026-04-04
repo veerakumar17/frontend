@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { loginWorker } from "./api";
 import "./Auth.css";
+import "./RoleSelect.css";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -30,8 +31,9 @@ export default function Login() {
   return (
     <div className="auth-container">
       <div className="auth-card">
+        <button className="back-link" onClick={() => navigate("/")}>← Back</button>
         <div className="auth-header">
-          <h1>AI Gig Worker Insurance</h1>
+          <h1>InsureGuard</h1>
           <p>Sign in to your account</p>
         </div>
         <form onSubmit={handleSubmit} className="auth-form">

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { registerWorker } from "./api";
 import "./Auth.css";
+import "./RoleSelect.css";
 
 const INITIAL = {
   username: "", password: "", name: "", email: "",
@@ -51,9 +52,9 @@ export default function Register() {
   return (
     <div className="auth-container">
       <div className="auth-card auth-card-wide">
+        <button className="back-link" onClick={() => navigate("/login")}>← Back</button>
         <div className="auth-header">
-          <h1>Create Account</h1>
-          <p>Join AI Gig Worker Insurance</p>
+          <p>Join InsureGuard</p>
         </div>
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-grid">

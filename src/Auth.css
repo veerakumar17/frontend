@@ -167,3 +167,31 @@
   .form-grid { grid-template-columns: 1fr; }
   .auth-card { padding: 32px 24px; }
 }
+
+/* Admin auth tabs */
+.adm-auth-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 24px;
+  border: 1px solid rgba(44,133,197,0.25);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.adm-auth-tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  background: #f0f7fd;
+  color: #2c5f80;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Roboto', sans-serif;
+  transition: all 0.2s;
+}
+
+.adm-auth-tab.active {
+  background: #2C85C5;
+  color: #fff;
+}

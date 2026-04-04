@@ -26,10 +26,10 @@ export default function Contact() {
             <h2>Get in Touch</h2>
             <div className="contact-items">
               {[
-                { label: "Email Support",    value: "support@aigiginsurance.in" },
+                { label: "Email Support",    value: "support@insureguard.in" },
                 { label: "Helpline",         value: "1800-XXX-XXXX (Toll Free)" },
                 { label: "Support Hours",    value: "Mon–Sat, 9 AM – 6 PM IST" },
-                { label: "Registered Office", value: "Chennai, Tamil Nadu, India" },
+                { label: "Registered Office", value: "Coimbatore, Tamil Nadu, India" },
               ].map((c) => (
                 <div className="contact-item" key={c.label}>
                   <div>

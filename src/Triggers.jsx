@@ -1,0 +1,159 @@
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { getClaims, getPolicy } from "./api";
+import Navbar from "./Navbar";
+import "./Triggers.css";
+
+const POLL_INTERVAL = 30000;
+
+const STATUS_CONFIG = {
+  Approved: { color: "#16a34a", bg: "rgba(34,197,94,0.1)",  border: "rgba(34,197,94,0.3)"  },
+  Pending:  { color: "#d97706", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)" },
+  Rejected: { color: "#dc2626", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.3)"  },
+};
+
+const TRIGGER_LABELS = {
+  rainfall:    "Heavy Rain",
+  temperature: "Extreme Heat",
+  aqi:         "Severe Pollution",
+  flood:       "Flood Alert",
+};
+
+const sourceLabel = (triggered_by) => {
+  if (!triggered_by || triggered_by === "simulation") return null;
+  if (triggered_by === "auto") return "Auto-triggered by live weather monitoring";
+  if (triggered_by.startsWith("admin:")) return `Triggered by ${triggered_by.replace("admin:", "Admin: ")}`;
+  return null;
+};
+
+export default function MyClaims() {
+  const navigate = useNavigate();
+  const worker   = JSON.parse(localStorage.getItem("worker") || "{}");
+
+  const [claims,  setClaims]  = useState([]);
+  const [policy,  setPolicy]  = useState(null);
+  const [toast,   setToast]   = useState(null);
+  const [loading, setLoading] = useState(true);
+  const knownIds = useRef(new Set());
+
+  useEffect(() => {
+    if (!worker.id) { navigate("/"); return; }
+    init();
+  }, []);
+
+  useEffect(() => {
+    if (!worker.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const res     = await getClaims(worker.id);
+        const latest  = res.data;
+        const newOnes = latest.filter(c => !knownIds.current.has(c.id));
+        if (newOnes.length > 0) {
+          newOnes.forEach(c => knownIds.current.add(c.id));
+          setClaims(latest);
+          const c     = newOnes[newOnes.length - 1];
+          const label = TRIGGER_LABELS[c.trigger_type] || c.trigger_type;
+          setToast(`New claim: ${label} — Rs.${c.payout_amount} ${c.status}`);
+          setTimeout(() => setToast(null), 6000);
+        }
+      } catch { /* silent */ }
+    }, POLL_INTERVAL);
+    return () => clearInterval(interval);
+  }, [worker.id]);
+
+  const init = async () => {
+    try {
+      const clmRes = await getClaims(worker.id).catch(() => ({ data: [] }));
+      setClaims(clmRes.data);
+      clmRes.data.forEach(c => knownIds.current.add(c.id));
+      try {
+        const polRes = await getPolicy(worker.id);
+        setPolicy(polRes.data);
+      } catch { /* no policy */ }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) return (
+    <>
+      <Navbar />
+      <div className="trig-loading"><div className="spinner" /></div>
+    </>
+  );
+
+  return (
+    <div>
+      <Navbar />
+      <div className="trig-container">
+
+        <div className="trig-header">
+          <h1>My Claims</h1>
+          <p>Claims are automatically created when a disruption trigger is activated by the system or admin. No action needed from you.</p>
+        </div>
+
+        {toast && <div className="trig-toast">{toast}</div>}
+
+        {!policy && (
+          <div className="trig-banner trig-banner-warn">
+            <div>
+              <strong>No active policy</strong>
+              <p>Go to <span className="trig-link" onClick={() => navigate("/dashboard")}>Dashboard</span> to activate a plan.</p>
+            </div>
+          </div>
+        )}
+
+        {policy && !policy.is_eligible && (
+          <div className="trig-banner trig-banner-warn">
+            <div>
+              <strong>{policy.weeks_paid}/6 weeks paid — not yet eligible</strong>
+              <p>Claims will be processed once you complete 6 weekly payments.</p>
+            </div>
+          </div>
+        )}
+
+        {policy && policy.is_eligible && (
+          <div className="trig-banner trig-banner-ok">
+            <div>
+              <strong>Coverage Active — {policy.plan} Plan</strong>
+              <p>Max payout Rs.{policy.max_payout}/week. Claims fire automatically when disruptions are detected.</p>
+            </div>
+          </div>
+        )}
+
+        {claims.length > 0 ? (
+          <>
+            <h2 className="trig-section-title">Claims History</h2>
+            <div className="trig-claims">
+              {claims.slice().reverse().map((c) => {
+                const cfg    = STATUS_CONFIG[c.status] || STATUS_CONFIG.Approved;
+                const label  = TRIGGER_LABELS[c.trigger_type] || c.trigger_type;
+                const source = sourceLabel(c.triggered_by);
+                return (
+                  <div key={c.id} className="trig-claim-row">
+                    <div className="trig-claim-id">#{c.id}</div>
+                    <div className="trig-claim-info">
+                      <strong>{label}</strong>
+                      <span>{new Date(c.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      {c.admin_note && <span className="trig-claim-note">{c.admin_note}</span>}
+                      {source       && <span className="trig-claim-source">{source}</span>}
+                    </div>
+                    <div className="trig-claim-payout">Rs.{c.payout_amount}</div>
+                    <div className="trig-claim-status" style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
+                      {c.status}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="trig-no-claims">
+            No claims yet. Claims will appear here automatically when a disruption is detected in your area.
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
