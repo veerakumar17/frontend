@@ -13,7 +13,7 @@ export default function Navbar() {
 
   return (
     <nav className="navbar">
-      <div className="nav-logo">InsureGuard</div>
+      <div className="nav-logo">InsureNet</div>
       <div className="nav-links">
         {worker && (
           <>

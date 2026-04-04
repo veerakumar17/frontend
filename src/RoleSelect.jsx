@@ -9,7 +9,7 @@ export default function RoleSelect() {
     <div className="auth-container">
       <div className="role-card">
         <div className="auth-header">
-          <h1>InsureGuard</h1>
+          <h1>InsureNet</h1>
           <p>Who are you signing in as?</p>
         </div>
         <div className="role-options">

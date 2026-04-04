@@ -33,7 +33,7 @@ export default function Login() {
       <div className="auth-card">
         <button className="back-link" onClick={() => navigate("/")}>← Back</button>
         <div className="auth-header">
-          <h1>InsureGuard</h1>
+          <h1>InsureNet</h1>
           <p>Sign in to your account</p>
         </div>
         <form onSubmit={handleSubmit} className="auth-form">

@@ -54,7 +54,7 @@ export default function Register() {
       <div className="auth-card auth-card-wide">
         <button className="back-link" onClick={() => navigate("/login")}>← Back</button>
         <div className="auth-header">
-          <p>Join InsureGuard</p>
+          <p>Join InsureNet</p>
         </div>
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="form-grid">
