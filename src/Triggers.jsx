@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { getClaims, getPolicy, processClaimPayout } from "./api";
+import { getClaims, getPolicy, createPayoutOrder, verifyPayout, processClaimPayout } from "./api";
 import Navbar from "./Navbar";
 import "./Triggers.css";
 
@@ -61,15 +61,12 @@ export default function MyClaims() {
           const toProcess = newOnes.filter(c => c.status === "Approved" && c.payout_status !== "processed");
           for (const c of toProcess) {
             try {
-              const res = await processClaimPayout(c.id);
-              setClaims(prev => prev.map(x => x.id === c.id ? res.data : x));
-              const label = TRIGGER_LABELS[c.trigger_type] || c.trigger_type;
-              setToast(`🔔 ${label} detected! ₹${c.payout_amount} sent to your UPI — Txn: ${res.data.payout_transaction_id}`);
+              await openRazorpayCheckout(c.id);
             } catch {
               const label = TRIGGER_LABELS[c.trigger_type] || c.trigger_type;
               setToast(`🔔 New claim: ${label} — ₹${c.payout_amount} ${c.status}`);
+              setTimeout(() => setToast(null), 8000);
             }
-            setTimeout(() => setToast(null), 8000);
           }
         }
       } catch { /* silent */ }
@@ -98,10 +95,67 @@ export default function MyClaims() {
     const unpaid = claimsList.filter(c => c.status === "Approved" && c.payout_status !== "processed");
     for (const c of unpaid) {
       try {
-        const res = await processClaimPayout(c.id);
-        setClaims(prev => prev.map(x => x.id === c.id ? res.data : x));
-      } catch { /* already processed or failed */ }
+        await openRazorpayCheckout(c.id);
+      } catch { /* silent */ }
     }
+  };
+
+  const openRazorpayCheckout = (claim_id) => {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const orderRes = await createPayoutOrder(claim_id);
+        const order    = orderRes.data;
+
+        const options = {
+          key:         order.key_id,
+          amount:      order.amount * 100,
+          currency:    "INR",
+          name:        "InsureNet",
+          description: "Insurance Claim Payout",
+          order_id:    order.order_id,
+          prefill: {
+            name:    order.worker_name,
+            email:   order.worker_email,
+            contact: order.worker_mobile,
+          },
+          notes: { upi_id: order.upi_id },
+          theme: { color: "#2C85C5" },
+          handler: async (response) => {
+            try {
+              const verifyRes = await verifyPayout(claim_id, {
+                razorpay_order_id:   response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature:  response.razorpay_signature,
+              });
+              setClaims(prev => prev.map(x => x.id === claim_id ? verifyRes.data : x));
+              setToast(`✅ ₹${order.amount} payout sent! Txn: ${response.razorpay_payment_id}`);
+              setTimeout(() => setToast(null), 8000);
+              resolve();
+            } catch { reject(); }
+          },
+          modal: {
+            ondismiss: async () => {
+              // fallback: mark as processed with order ID
+              try {
+                const res = await processClaimPayout(claim_id);
+                setClaims(prev => prev.map(x => x.id === claim_id ? res.data : x));
+              } catch { /* silent */ }
+              resolve();
+            }
+          }
+        };
+
+        const rzp = new window.Razorpay(options);
+        rzp.open();
+      } catch (err) {
+        // fallback if Razorpay order creation fails
+        try {
+          const res = await processClaimPayout(claim_id);
+          setClaims(prev => prev.map(x => x.id === claim_id ? res.data : x));
+        } catch { /* silent */ }
+        resolve();
+      }
+    });
   };
 
   if (loading) return (
