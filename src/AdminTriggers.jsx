@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { getWorkersSummary, adminFireTriggerLocation, adminTriggerPayment } from "./api";
+import { useNavigate } from "react-router-dom";
+import { getWorkersSummary, adminFireTriggerLocation, processClaimPayout } from "./api";
 import Navbar from "./Navbar";
 import "./AdminDashboard.css";
 
@@ -14,6 +15,7 @@ export default function AdminTriggers() {
   const [firing,     setFiring]     = useState(false);
   const [result,     setResult]     = useState(null);
   const [error,      setError]      = useState("");
+  const [payoutMsgs, setPayoutMsgs] = useState({});  // claim_id -> {ok, text}
 
   useEffect(() => {
     getWorkersSummary().then(r => {
@@ -60,6 +62,16 @@ export default function AdminTriggers() {
       } catch (err) {
         setError(err.response?.data?.detail || "Failed to fire trigger.");
       } finally { setFiring(false); }
+    }
+  };
+
+  const handleProcessPayout = async (claim_id) => {
+    setPayoutMsgs(m => ({ ...m, [claim_id]: { loading: true } }));
+    try {
+      const res = await processClaimPayout(claim_id);
+      setPayoutMsgs(m => ({ ...m, [claim_id]: { ok: true, txn: res.data.payout_transaction_id } }));
+    } catch (err) {
+      setPayoutMsgs(m => ({ ...m, [claim_id]: { ok: false, text: err.response?.data?.detail || "Payout failed." } }));
     }
   };
 
@@ -163,9 +175,34 @@ export default function AdminTriggers() {
                 <br />
                 <strong>{result.data.claims_created}</strong> claim{result.data.claims_created !== 1 ? "s" : ""} created
                 {result.type === "worker" && ` for ${result.worker.name}`}:
-                {result.data.details.map((d, i) => (
-                  <span key={i} className="adm-result-detail"> {d.worker} ({d.trigger} — Rs.{d.payout})</span>
-                ))}
+                <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+                  {result.data.details.map((d, i) => {
+                    const pm = payoutMsgs[d.claim_id];
+                    return (
+                      <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span className="adm-result-detail">{d.worker} ({d.trigger} — Rs.{d.payout})</span>
+                        {d.claim_id && !pm?.ok && (
+                          <button
+                            className="adm-pay-btn"
+                            style={{ fontSize: 12, padding: "4px 12px" }}
+                            onClick={() => handleProcessPayout(d.claim_id)}
+                            disabled={pm?.loading}
+                          >
+                            {pm?.loading ? "Processing..." : "Process Payout"}
+                          </button>
+                        )}
+                        {pm?.ok && (
+                          <span style={{ color: "#16a34a", fontSize: 12, fontWeight: 600 }}>
+                            ✅ Paid · Txn: {pm.txn}
+                          </span>
+                        )}
+                        {pm?.text && (
+                          <span style={{ color: "#dc2626", fontSize: 12 }}>{pm.text}</span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

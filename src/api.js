@@ -32,7 +32,8 @@ export const payPremium        = (worker_id) => api.post(`/premiums/pay/${worker
 export const getPremiumHistory = (worker_id) => api.get(`/premiums/${worker_id}`);
 
 // Claims
-export const getClaims = (worker_id) => api.get(`/claims/${worker_id}`);
+export const getClaims          = (worker_id) => api.get(`/claims/${worker_id}`);
+export const processClaimPayout = (claim_id)  => api.post(`/claims/process-payout/${claim_id}`);
 
 // Triggers
 export const getTriggerList  = ()     => api.get("/triggers/list");

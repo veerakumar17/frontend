@@ -307,6 +307,29 @@
   to   { opacity: 0; }
 }
 
+.trig-claim-txn {
+  font-size: 11px;
+  color: #16a34a;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+.trig-payout-btn {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 0.2s;
+  white-space: nowrap;
+}
+.trig-payout-btn:hover:not(:disabled) { opacity: 0.85; }
+.trig-payout-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
 /* ── Auto Trigger Row ── */
 .trig-auto-row {
   display: flex;
@@ -334,3 +357,28 @@
 }
 .trig-auto-btn:hover:not(:disabled) { opacity: 0.9; }
 .trig-auto-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── UPI Payout Receipt ── */
+.trig-upi-receipt {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  background: rgba(22,163,74,0.08);
+  border: 1px solid rgba(22,163,74,0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: var(--text2);
+}
+
+.trig-upi-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #16a34a;
+  margin-bottom: 2px;
+}
+
+.trig-upi-receipt strong {
+  color: var(--text);
+}

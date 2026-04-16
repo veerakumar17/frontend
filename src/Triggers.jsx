@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { getClaims, getPolicy } from "./api";
+import { getClaims, getPolicy, processClaimPayout } from "./api";
 import Navbar from "./Navbar";
 import "./Triggers.css";
 
@@ -10,6 +10,12 @@ const STATUS_CONFIG = {
   Approved: { color: "#16a34a", bg: "rgba(34,197,94,0.1)",  border: "rgba(34,197,94,0.3)"  },
   Pending:  { color: "#d97706", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)" },
   Rejected: { color: "#dc2626", bg: "rgba(239,68,68,0.1)",  border: "rgba(239,68,68,0.3)"  },
+};
+
+const PAYOUT_CONFIG = {
+  processed: { color: "#16a34a", label: "✅ Payout Sent"    },
+  pending:   { color: "#d97706", label: "⏳ Payout Pending" },
+  failed:    { color: "#dc2626", label: "❌ Payout Failed"  },
 };
 
 const TRIGGER_LABELS = {
@@ -30,10 +36,10 @@ export default function MyClaims() {
   const navigate = useNavigate();
   const worker   = JSON.parse(localStorage.getItem("worker") || "{}");
 
-  const [claims,  setClaims]  = useState([]);
-  const [policy,  setPolicy]  = useState(null);
-  const [toast,   setToast]   = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [claims,     setClaims]     = useState([]);
+  const [policy,     setPolicy]     = useState(null);
+  const [toast,      setToast]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
   const knownIds = useRef(new Set());
 
   useEffect(() => {
@@ -51,10 +57,20 @@ export default function MyClaims() {
         if (newOnes.length > 0) {
           newOnes.forEach(c => knownIds.current.add(c.id));
           setClaims(latest);
-          const c     = newOnes[newOnes.length - 1];
-          const label = TRIGGER_LABELS[c.trigger_type] || c.trigger_type;
-          setToast(`New claim: ${label} — Rs.${c.payout_amount} ${c.status}`);
-          setTimeout(() => setToast(null), 6000);
+          // Auto-process payout for new approved claims
+          const toProcess = newOnes.filter(c => c.status === "Approved" && c.payout_status !== "processed");
+          for (const c of toProcess) {
+            try {
+              const res = await processClaimPayout(c.id);
+              setClaims(prev => prev.map(x => x.id === c.id ? res.data : x));
+              const label = TRIGGER_LABELS[c.trigger_type] || c.trigger_type;
+              setToast(`🔔 ${label} detected! ₹${c.payout_amount} sent to your UPI — Txn: ${res.data.payout_transaction_id}`);
+            } catch {
+              const label = TRIGGER_LABELS[c.trigger_type] || c.trigger_type;
+              setToast(`🔔 New claim: ${label} — ₹${c.payout_amount} ${c.status}`);
+            }
+            setTimeout(() => setToast(null), 8000);
+          }
         }
       } catch { /* silent */ }
     }, POLL_INTERVAL);
@@ -64,14 +80,27 @@ export default function MyClaims() {
   const init = async () => {
     try {
       const clmRes = await getClaims(worker.id).catch(() => ({ data: [] }));
-      setClaims(clmRes.data);
-      clmRes.data.forEach(c => knownIds.current.add(c.id));
+      const claims = clmRes.data;
+      setClaims(claims);
+      claims.forEach(c => knownIds.current.add(c.id));
+      // Auto-process any approved but unpaid payouts
+      autoProcessPayouts(claims);
       try {
         const polRes = await getPolicy(worker.id);
         setPolicy(polRes.data);
       } catch { /* no policy */ }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const autoProcessPayouts = async (claimsList) => {
+    const unpaid = claimsList.filter(c => c.status === "Approved" && c.payout_status !== "processed");
+    for (const c of unpaid) {
+      try {
+        const res = await processClaimPayout(c.id);
+        setClaims(prev => prev.map(x => x.id === c.id ? res.data : x));
+      } catch { /* already processed or failed */ }
     }
   };
 
@@ -89,7 +118,7 @@ export default function MyClaims() {
 
         <div className="trig-header">
           <h1>My Claims</h1>
-          <p>Claims are automatically created when a disruption trigger is activated by the system or admin. No action needed from you.</p>
+          <p>Claims are automatically created when a disruption trigger is activated. Payouts are sent instantly to your UPI ID.</p>
         </div>
 
         {toast && <div className="trig-toast">{toast}</div>}
@@ -116,7 +145,7 @@ export default function MyClaims() {
           <div className="trig-banner trig-banner-ok">
             <div>
               <strong>Coverage Active — {policy.plan} Plan</strong>
-              <p>Max payout Rs.{policy.max_payout}/week. Claims fire automatically when disruptions are detected.</p>
+              <p>Max payout ₹{policy.max_payout}/week. Claims fire automatically when disruptions are detected.</p>
             </div>
           </div>
         )}
@@ -129,18 +158,34 @@ export default function MyClaims() {
                 const cfg    = STATUS_CONFIG[c.status] || STATUS_CONFIG.Approved;
                 const label  = TRIGGER_LABELS[c.trigger_type] || c.trigger_type;
                 const source = sourceLabel(c.triggered_by);
+                const payout = PAYOUT_CONFIG[c.payout_status] || PAYOUT_CONFIG.Pending;
+                const canPay = c.status === "Approved" && c.payout_status !== "processed";
                 return (
                   <div key={c.id} className="trig-claim-row">
                     <div className="trig-claim-id">#{c.id}</div>
                     <div className="trig-claim-info">
                       <strong>{label}</strong>
                       <span>{new Date(c.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
-                      {c.admin_note && <span className="trig-claim-note">{c.admin_note}</span>}
-                      {source       && <span className="trig-claim-source">{source}</span>}
+                      {source && <span className="trig-claim-source">{source}</span>}
+                      {c.payout_status === "processed" && c.payout_transaction_id && (
+                        <div className="trig-upi-receipt">
+                          <span className="trig-upi-label">UPI Payout Receipt</span>
+                          <span>Txn ID: <strong>{c.payout_transaction_id}</strong></span>
+                          <span>Sent to: <strong>{worker.upi_id}</strong></span>
+                          {c.payout_processed_at && (
+                            <span>Time: <strong>{new Date(c.payout_processed_at).toLocaleString("en-IN")}</strong></span>
+                          )}
+                        </div>
+                      )}
                     </div>
-                    <div className="trig-claim-payout">Rs.{c.payout_amount}</div>
-                    <div className="trig-claim-status" style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
-                      {c.status}
+                    <div className="trig-claim-payout">₹{c.payout_amount}</div>
+                    <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                      <div className="trig-claim-status" style={{ color: cfg.color, background: cfg.bg, borderColor: cfg.border }}>
+                        {c.status}
+                      </div>
+                      <div style={{ fontSize: 12, color: payout.color, fontWeight: 600 }}>
+                        {payout.label}
+                      </div>
                     </div>
                   </div>
                 );
