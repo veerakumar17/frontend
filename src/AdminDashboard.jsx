@@ -1,10 +1,18 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { getAdminDashboard, getWorkersSummary } from "./api";
+import { getAdminDashboard, getWorkersSummary, getSchedulerStatus } from "./api";
 import Navbar from "./Navbar";
 import "./AdminDashboard.css";
 
 const RISK_COLOR = { Low: "#22c55e", Medium: "#f59e0b", High: "#ef4444" };
+
+function toIST(utcStr) {
+  if (!utcStr) return "";
+  const d = new Date(utcStr);
+  // Add 5h 30m for IST
+  const ist = new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  return ist.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+}
 
 const ADM_CACHE_KEY = "adm_dash_cache";
 function readAdmCache() {
@@ -18,18 +26,20 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
   const cached   = readAdmCache();
-  const [data,    setData]    = useState(cached?.data ?? null);
-  const [workers, setWorkers] = useState(cached?.workers ?? []);
-  const [loading, setLoading] = useState(!cached);
-  const [error,   setError]   = useState("");
-  const [tab,     setTab]     = useState(() => new URLSearchParams(location.search).get("tab") || "overview");
+  const [data,      setData]      = useState(cached?.data ?? null);
+  const [workers,   setWorkers]   = useState(cached?.workers ?? []);
+  const [loading,   setLoading]   = useState(!cached);
+  const [error,     setError]     = useState("");
+  const [tab,       setTab]       = useState(() => new URLSearchParams(location.search).get("tab") || "overview");
+  const [schedInfo, setSchedInfo] = useState(null);
 
   useEffect(() => {
     const silent = !!cached;
-    Promise.all([getAdminDashboard(), getWorkersSummary()])
-      .then(([d, w]) => {
+    Promise.all([getAdminDashboard(), getWorkersSummary(), getSchedulerStatus()])
+      .then(([d, w, s]) => {
         setData(d.data);
         setWorkers(w.data);
+        setSchedInfo(s.data);
         writeAdmCache({ data: d.data, workers: w.data });
       })
       .catch(() => { if (!silent) setError("Failed to load admin data."); })
@@ -51,6 +61,15 @@ export default function AdminDashboard() {
             <h1>Insurer Dashboard</h1>
             <p>Real-time analytics, loss ratios and predictive disruption forecasts</p>
           </div>
+          {schedInfo && (
+            <div className="adm-sched-status">
+              <span>Auto-trigger runs every 5 minutes</span>
+              {schedInfo.last_run
+                ? <span>Last run: {toIST(schedInfo.last_run)} · {schedInfo.claims_created} claims · {schedInfo.payouts_processed} payouts</span>
+                : <span>Not yet run</span>
+              }
+            </div>
+          )}
         </div>
 
         <div className="adm-tabs">

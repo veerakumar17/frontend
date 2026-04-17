@@ -23,6 +23,12 @@ const TRIGGER_LABELS = {
 
 const DASH_CACHE_KEY = "dash_cache";
 
+function toIST(utcStr) {
+  if (!utcStr) return "";
+  const ist = new Date(new Date(utcStr).getTime() + 5.5 * 60 * 60 * 1000);
+  return ist.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
 function readCache() {
   try { return JSON.parse(localStorage.getItem(DASH_CACHE_KEY) || "null"); } catch { return null; }
 }
@@ -72,7 +78,7 @@ export default function Dashboard() {
           writeCache({ ...readCache(), claims: latest });
           const last = newClaims[newClaims.length - 1];
           const label = TRIGGER_LABELS[last.trigger_type]?.label || last.trigger_type;
-          setToast(`🔔 Auto-trigger fired! ${label} — ₹${last.payout_amount} payout ${last.status}`);
+          setToast(`Auto-trigger fired! ${label} — Rs.${last.payout_amount} payout ${last.status}`);
           setTimeout(() => setToast(null), 5000);
         }
       } catch { /* silent */ }
@@ -413,6 +419,41 @@ export default function Dashboard() {
           <>
             <h2 className="section-title">Payment History</h2>
             <div className="ph-empty">No payments detected yet. Admin will trigger your first weekly payment.</div>
+          </>
+        )}
+
+        {/* ── Row 7: Claims History ── */}
+        {policy && claims.length > 0 && (
+          <>
+            <h2 className="section-title">Claims History</h2>
+            <div className="payment-history-list">
+              {[...claims].reverse().map((c) => {
+                const label = TRIGGER_LABELS[c.trigger_type]?.label || c.trigger_type;
+                const date  = toIST(c.created_at);
+                const isApproved = c.status === "Approved";
+                const payoutProcessed = c.payout_status === "processed";
+                return (
+                  <div key={c.id} className={`payment-history-row ${isApproved ? "ph-paid" : "ph-failed"}`}>
+                    <div className="ph-week-badge">{label}</div>
+                    <div className="ph-message">
+                      {isApproved
+                        ? `${label} triggered — ₹${c.payout_amount} payout ${payoutProcessed ? "processed" : "pending"}`
+                        : `${label} claim ${c.status.toLowerCase()}`
+                      }
+                      {payoutProcessed && c.payout_transaction_id && (
+                        <div style={{ fontSize: 11, color: "#16a34a", marginTop: 4 }}>
+                          Txn: {c.payout_transaction_id}
+                        </div>
+                      )}
+                    </div>
+                    <div className="ph-date">{date}</div>
+                    <div className={`ph-status ${isApproved ? "ph-status-paid" : "ph-status-failed"}`}>
+                      {c.status}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </>
         )}
 

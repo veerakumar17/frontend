@@ -6,6 +6,12 @@ import "./Triggers.css";
 
 const POLL_INTERVAL = 30000;
 
+function toIST(utcStr) {
+  if (!utcStr) return "";
+  const ist = new Date(new Date(utcStr).getTime() + 5.5 * 60 * 60 * 1000);
+  return ist.toLocaleString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true });
+}
+
 const STATUS_CONFIG = {
   Approved: { color: "#16a34a", bg: "rgba(34,197,94,0.1)",  border: "rgba(34,197,94,0.3)"  },
   Pending:  { color: "#d97706", bg: "rgba(245,158,11,0.1)", border: "rgba(245,158,11,0.3)" },
@@ -165,7 +171,7 @@ export default function MyClaims() {
                     <div className="trig-claim-id">#{c.id}</div>
                     <div className="trig-claim-info">
                       <strong>{label}</strong>
-                      <span>{new Date(c.created_at).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      <span>{toIST(c.created_at)}</span>
                       {source && <span className="trig-claim-source">{source}</span>}
                       {c.payout_status === "processed" && c.payout_transaction_id && (
                         <div className="trig-upi-receipt">
@@ -173,7 +179,7 @@ export default function MyClaims() {
                           <span>Txn ID: <strong>{c.payout_transaction_id}</strong></span>
                           <span>Sent to: <strong>{worker.upi_id}</strong></span>
                           {c.payout_processed_at && (
-                            <span>Time: <strong>{new Date(c.payout_processed_at).toLocaleString("en-IN")}</strong></span>
+                            <span>Time: <strong>{toIST(c.payout_processed_at)}</strong></span>
                           )}
                         </div>
                       )}

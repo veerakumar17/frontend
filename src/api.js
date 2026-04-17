@@ -39,12 +39,15 @@ export const processClaimPayout = (claim_id)  => api.post(`/claims/process-payou
 export const getTriggerList  = ()     => api.get("/triggers/list");
 export const simulateTrigger = (data) => api.post("/triggers/simulate", data);
 
+// Scheduler
+export const getSchedulerStatus = () => api.get("/scheduler/status");
+
 // Admin
-export const adminLogin           = (data)      => api.post("/admin/login", data);
-export const adminRegister        = (data)      => api.post("/admin/register", data);
-export const getAdminDashboard    = ()          => api.get("/admin/dashboard");
-export const getWorkersSummary    = ()          => api.get("/admin/workers-summary");
-export const getFraudDetection    = ()          => api.get("/admin/fraud-detection");
+export const adminLogin               = (data)      => api.post("/admin/login", data);
+export const adminRegister            = (data)      => api.post("/admin/register", data);
+export const getAdminDashboard        = ()          => api.get("/admin/dashboard");
+export const getWorkersSummary        = ()          => api.get("/admin/workers-summary");
+export const getFraudDetection        = ()          => api.get("/admin/fraud-detection");
 export const adminTriggerPayment      = (worker_id) => api.post(`/admin/trigger-payment/${worker_id}`);
 export const adminFireTrigger         = (data)      => api.post("/admin/fire-trigger", data);
 export const adminFireTriggerLocation = (data)      => api.post("/admin/fire-trigger-by-location", data);
